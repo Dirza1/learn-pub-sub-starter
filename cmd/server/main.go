@@ -2,7 +2,11 @@ package main
 
 import (
 	"fmt"
+	"os"
+	"os/signal"
 
+	"github.com/bootdotdev/learn-pub-sub-starter/internal/pubsub"
+	"github.com/bootdotdev/learn-pub-sub-starter/internal/routing"
 	amqp "github.com/rabbitmq/amqp091-go"
 )
 
@@ -16,4 +20,20 @@ func main() {
 	}
 	defer connection.Close()
 	fmt.Println("Connection successfull")
+	pauzeChan, err := connection.Channel()
+	if err != nil {
+		fmt.Printf("Error: %s\n", err)
+		return
+	}
+
+	err = pubsub.PublishJSON(pauzeChan, routing.ExchangePerilDirect, routing.PauseKey, routing.PlayingState{IsPaused: true})
+	if err != nil {
+		fmt.Printf("Err: %s/n", err)
+		return
+	}
+
+	signalChan := make(chan os.Signal, 1)
+	signal.Notify(signalChan, os.Interrupt)
+	sig := <-signalChan
+	fmt.Printf("Received %v, shutting down...\n", sig)
 }
