@@ -27,6 +27,12 @@ func main() {
 	}
 	defer pauseChan.Close()
 
+	logCha, logQue, err := pubsub.DeclareAndBind(connection, routing.ExchangePerilTopic, routing.GameLogSlug, "game_logs.*", pubsub.Durable)
+	if err != nil {
+		fmt.Printf("Error: %s\n", err)
+	}
+	defer logCha.Close()
+	fmt.Printf("declaured que: %s\n", logQue.Name)
 	gamelogic.PrintServerHelp()
 
 	for {
