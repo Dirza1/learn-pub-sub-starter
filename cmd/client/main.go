@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 
 	"github.com/bootdotdev/learn-pub-sub-starter/internal/gamelogic"
@@ -36,6 +37,29 @@ func main() {
 	fmt.Println("Declared queue:", PlayerQue.Name)
 
 	gameState := gamelogic.NewGameState(userName)
+	err = pubsub.SubscribeJSON(connection, routing.ExchangePerilDirect, queNname, routing.PauseKey, pubsub.Transient, handlerPause(gameState))
+	if err != nil {
+		fmt.Printf("Err: %s\n", err)
+		return
+	}
+
+	handleMove := func(m gamelogic.ArmyMove) {
+		outcome := gameState.HandleMove(m)
+		_ = outcome
+		fmt.Print("> ")
+	}
+
+	err = pubsub.SubscribeJSON(connection,
+		routing.ExchangePerilTopic,
+		routing.ArmyMovesPrefix+"."+userName,
+		routing.ArmyMovesPrefix+".*",
+		pubsub.Transient,
+		handleMove,
+	)
+	if err != nil {
+		fmt.Printf("Err: %s\n", err)
+		return
+	}
 	for {
 		input := gamelogic.GetInput()
 		if len(input) == 0 {
@@ -46,6 +70,18 @@ func main() {
 			gameState.CommandSpawn(input)
 		case "move":
 			gameState.CommandMove(input)
+			id, _ := strconv.Atoi(input[2])
+			currentUnit, _ := gameState.GetUnit(id)
+			err = pubsub.PublishJSON(PlayerChan, routing.ExchangePerilTopic, routing.ArmyMovesPrefix+"."+userName, gamelogic.ArmyMove{
+				Player:     gameState.Player,
+				ToLocation: gamelogic.Location(input[1]),
+				Units:      []gamelogic.Unit{currentUnit},
+			})
+			if err != nil {
+				fmt.Printf("Err: %s\n", err)
+				return
+			}
+			fmt.Println("Move published successfully")
 		case "status":
 			gameState.CommandStatus()
 		case "help":
@@ -58,5 +94,12 @@ func main() {
 		default:
 			fmt.Printf("Unknown command: %s", input[0])
 		}
+	}
+}
+
+func handlerPause(gs *gamelogic.GameState) func(routing.PlayingState) {
+	return func(ps routing.PlayingState) {
+		defer fmt.Println("> ")
+		gs.HandlePause(ps)
 	}
 }
