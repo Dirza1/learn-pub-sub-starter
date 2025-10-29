@@ -73,16 +73,16 @@ func SubscribeJSON[T any](
 	key string,
 	queueType SimpleQueueType, // an enum to represent "durable" or "transient"
 	handler func(T),
-) error {
+) (amqp.Acknowledger, error) {
 
 	chanCheck, queCheck, err := DeclareAndBind(conn, exchange, queueName, key, queueType)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	deliveryChann, err := chanCheck.Consume(queCheck.Name, "", false, false, false, false, nil)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	go func() {
 		for val := range deliveryChann {
@@ -99,6 +99,6 @@ func SubscribeJSON[T any](
 
 		}
 	}()
-	return nil
+	return nil, nil
 
 }
